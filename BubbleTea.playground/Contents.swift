@@ -2,90 +2,90 @@
 
 import PlaygroundSupport
 import SpriteKit
+import SceneKit
 
-class GameScene: SKScene {
+public class FoodType: Equatable {
+    public static func ==(a: FoodType, b: FoodType) -> Bool {
+        return a === b
+    }
+}
+
+public class LiquidType: FoodType {
+    public var name: String?
+    public let color: CGColor
+    public let viscosity: Double
+    public let transparency: Double
     
-    private var label : SKLabelNode!
-    private var spinnyNode : SKShapeNode!
-    
-    override func didMove(to view: SKView) {
-        // Get label node from scene and store it for use later
-        label = childNode(withName: "//helloLabel") as? SKLabelNode
-        label.alpha = 0.0
-        let fadeInOut = SKAction.sequence([.fadeIn(withDuration: 2.0),
-                                           .fadeOut(withDuration: 2.0)])
-        label.run(.repeatForever(fadeInOut))
+    public init(color: CGColor, viscosity: Double = 0, transparency: Double = 0) {
+        self.color = color
+        self.viscosity = viscosity
+        self.transparency = transparency
+    }
+}
+
+public class BubbleType: FoodType {
+    public var name: String?
+}
+
+public class Cup {
+    static let cupGeometry: SCNGeometry = {
+        let cylinder = SCNCylinder(radius: 0.6, height: 0.2)
         
-        // Create shape node to use during mouse interaction
-        let w = (size.width + size.height) * 0.05
+        let glassMaterial = cylinder.firstMaterial!
+        glassMaterial.transparent.contents = CGColor(gray: 0.0, alpha: 0.2)
+        glassMaterial.diffuse.contents = CGColor.white
         
-        spinnyNode = SKShapeNode(rectOf: CGSize(width: w, height: w), cornerRadius: w * 0.3)
-        spinnyNode.lineWidth = 2.5
+        let tube = SCNTube(innerRadius: 0.5, outerRadius: 0.6, height: 2)
         
-        let fadeAndRemove = SKAction.sequence([.wait(forDuration: 0.5),
-                                               .fadeOut(withDuration: 0.5),
-                                               .removeFromParent()])
-        spinnyNode.run(.repeatForever(.rotate(byAngle: CGFloat(Double.pi), duration: 1)))
-        spinnyNode.run(fadeAndRemove)
-    }
-    
-    @objc static override var supportsSecureCoding: Bool {
-        // SKNode conforms to NSSecureCoding, so any subclass going
-        // through the decoding process must support secure coding
-        get {
-            return true
-        }
-    }
-    
-    func touchDown(atPoint pos : CGPoint) {
-        guard let n = spinnyNode.copy() as? SKShapeNode else { return }
+        let node = SCNNode(geometry: cylinder)
+        let tubeNode = SCNNode(geometry: tube)
+        tubeNode.position.y = 1.1
+        node.addChildNode(tubeNode)
         
-        n.position = pos
-        n.strokeColor = SKColor.green
-        addChild(n)
-    }
-    
-    func touchMoved(toPoint pos : CGPoint) {
-        guard let n = self.spinnyNode.copy() as? SKShapeNode else { return }
+        let geometry = node.flattenedClone().geometry!
+        geometry.materials = [glassMaterial]
         
-        n.position = pos
-        n.strokeColor = SKColor.blue
-        addChild(n)
+        return geometry
+    }()
+    
+    public struct Liquid {
+        let type: LiquidType
+        var amount: Double
     }
     
-    func touchUp(atPoint pos : CGPoint) {
-        guard let n = spinnyNode.copy() as? SKShapeNode else { return }
+    let node = SCNNode(geometry: nil)
+    private let liquidNode = SCNNode(geometry: SCNCylinder(radius: 0.5, height: 1.5))
+    private var _liquids = [Liquid]()
+    
+    public var liquids: [Liquid] {
+        return _liquids
+    }
+    
+    public init() {
+        let cupNode = SCNNode(geometry: Cup.cupGeometry)
+        node.addChildNode(cupNode)
         
-        n.position = pos
-        n.strokeColor = SKColor.red
-        addChild(n)
-    }
-    
-    override func mouseDown(with event: NSEvent) {
-        touchDown(atPoint: event.location(in: self))
-    }
-    
-    override func mouseDragged(with event: NSEvent) {
-        touchMoved(toPoint: event.location(in: self))
-    }
-    
-    override func mouseUp(with event: NSEvent) {
-        touchUp(atPoint: event.location(in: self))
-    }
-    
-    override func update(_ currentTime: TimeInterval) {
-        // Called before each frame is rendered
+        liquidNode.geometry!.firstMaterial!.diffuse.contents = CGColor(red: 0, green: 0, blue: 1, alpha: 1)
+        
+        let height = liquidNode.geometry!.boundingBox.max.y - liquidNode.geometry!.boundingBox.min.y
+        liquidNode.position.y = height / 2 + 0.1
+        node.addChildNode(liquidNode)
+        
+        node.physicsBody = SCNPhysicsBody(type: .dynamic, shape: SCNPhysicsShape(geometry: Cup.cupGeometry, options: nil))
     }
 }
 
 // Load the SKScene from 'GameScene.sks'
-let sceneView = SKView(frame: CGRect(x:0 , y:0, width: 640, height: 480))
-if let scene = GameScene(fileNamed: "GameScene") {
-    // Set the scale mode to scale to fit the window
-    scene.scaleMode = .aspectFill
+let sceneView = SCNView(frame: CGRect(x:0 , y:0, width: 640, height: 480))
+let scene = SCNScene(named: "Test.scn")!
+
+sceneView.showsStatistics = true
     
-    // Present the scene
-    sceneView.presentScene(scene)
-}
+// Present the scene
+sceneView.present(scene, with: SKTransition(), incomingPointOfView: nil, completionHandler: nil)
+
+let cup = Cup()
+cup.node.position.y = 2.1
+scene.rootNode.addChildNode(cup.node)
 
 PlaygroundSupport.PlaygroundPage.current.liveView = sceneView
