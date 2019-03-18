@@ -68,19 +68,23 @@ public class Cup {
             self.types = types
             self.amount = amount
             
-            var components = [CGFloat](repeating: 0.0, count: 4)
-            let colorSpace = CGColorSpaceCreateDeviceRGB()
-            let colors = types.map { pair in
-                return (key: pair.key, value: pair.value, color: pair.key.color.converted(to: colorSpace, intent: .defaultIntent, options: nil)!)
+            if self.types.count == 1 {
+                color = types.keys.first!.color
+            } else {
+                var components = [CGFloat](repeating: 0.0, count: 4)
+                let colorSpace = CGColorSpaceCreateDeviceRGB()
+                let colors = types.map { pair in
+                    return (key: pair.key, value: pair.value, color: pair.key.color.converted(to: colorSpace, intent: .defaultIntent, options: nil)!)
+                }
+                for i in 0..<4 {
+                    let total = colors.reduce(0.0, { $0 + $1.value })
+                    let sumOfSquares = colors.reduce(0.0, { pow(Double($1.color.components![i]), 2) * $1.value + $0 })
+                    let result = min(max(sqrt(sumOfSquares / total), 0.0), 1.0)
+                    components[i] = CGFloat(result)
+                }
+                
+                color = CGColor(red: components[0], green: components[1], blue: components[2], alpha: components[3])
             }
-            for i in 0..<4 {
-                let total = colors.reduce(0.0, { $0 + $1.value })
-                let sumOfSquares = colors.reduce(0.0, { pow(Double($1.color.components![i]), 2) * $1.value + $0 })
-                let result = min(max(sqrt(sumOfSquares / total), 0.0), 1.0)
-                components[i] = CGFloat(result)
-            }
-            
-            color = CGColor(red: components[0], green: components[1], blue: components[2], alpha: components[3])
         }
         
         public static func blend(_ liquids: [Liquid]) -> Liquid {
@@ -242,9 +246,15 @@ let yellow = LiquidType(color: CGColor(red: 1.0, green: 1.0, blue: 0.0, alpha: 1
 
 cup.removeLiquid(amount: 1.0)
 cup.add(red, amount: 0.4)
-cup.add(yellow, amount: 0.2)
-cup.add(unicorn, amount: 0.4)
+cup.add(red, amount: 0.4)
+cup.add(unicorn, amount: 0.2)
 cup.updateLiquidNode()
 
 cup.blend()
+cup.updateLiquidNode()
+
+cup.removeLiquid(amount: 1.0)
+cup.add(red, amount: 0.4)
+cup.add(red, amount: 0.4)
+cup.add(unicorn, amount: 0.2)
 cup.updateLiquidNode()
