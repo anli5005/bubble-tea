@@ -8,7 +8,7 @@ public class GameManager {
     private var currentlyMoving: SCNNode?
     private var currentPhysicsBody: SCNPhysicsBody?
     
-    public var blendThreshold: CGFloat = 8000
+    public var blendThreshold: CGFloat = 5500
     
     @objc public func pan(sender: NSPanGestureRecognizer) {
         let location = sender.location(in: sceneView)
@@ -49,11 +49,12 @@ public class GameManager {
             newPos.z = current.position.z
             current.position = newPos
             
-            if let cup = (current as? Cup.Node)?.cup {
+            if let cupNode = current as? CupNode {
                 let velocity = sender.velocity(in: sceneView)
-                if sqrt(pow(velocity.x, 2) + pow(velocity.y, 2)) > blendThreshold {
-                    cup.blend()
-                    cup.updateLiquidNode()
+                let scalarVelocity = sqrt(pow(velocity.x, 2) + pow(velocity.y, 2))
+                if scalarVelocity > blendThreshold {
+                    cupNode.cup.blend()
+                    cupNode.updateLiquidNode()
                 }
             }
         }
