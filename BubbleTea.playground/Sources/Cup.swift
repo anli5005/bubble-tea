@@ -103,7 +103,7 @@ public class Cup {
         }
         
         liquidsUpdated = true
-    }
+    }  
     
     public func blend() {
         _liquids = [Liquid.blend(liquids)]
@@ -116,6 +116,7 @@ public class Cup {
     
     public func add(_ bubbles: BubbleType, amount: Int = 1) {
         _bubbles[bubbles] = (_bubbles[bubbles] ?? 0) + amount
+        bubblesUpdated = true
     }
     
     public var bubbleCount: Int {

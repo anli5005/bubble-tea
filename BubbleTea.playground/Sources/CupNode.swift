@@ -23,6 +23,7 @@ public class CupNode: MovableNode {
     }()
     
     public let cup: Cup
+    
     private let liquidNode = SCNNode(geometry: SCNCylinder(radius: 0.5, height: 0))
     private var lastLiquid: CGColor? = nil
     
@@ -33,9 +34,9 @@ public class CupNode: MovableNode {
         liquidNode.position.y = CGFloat(height) / 2 + 0.12
         liquidNode.isHidden = height <= 0
         
+        let gradientMaterial = liquidNode.geometry!.materials[0]
         if cup.liquids.count != 1 || lastLiquid != cup.liquids.first?.color {
             let gradientContext = CGContext(data: nil, width: 512, height: 512, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
-            let gradientMaterial = liquidNode.geometry!.materials[0]
             let colors = cup.liquids.map { $0.color }
             let locations = cup.liquids.reduce([Double](), { locations, liquid in
                 let location = (locations.last ?? 0.0) + liquid.amount
@@ -66,6 +67,41 @@ public class CupNode: MovableNode {
         cup.liquidsUpdated = false
     }
     
+    private let bubbleNode = SCNNode()
+    private var bubblesAdded = [BubbleType: Int]()
+    
+    public func updateBubbleNode() {
+        cup.bubbles.forEach { pair in
+            let toAdd = pair.value - (bubblesAdded[pair.key] ?? 0)
+            for _ in 0..<toAdd {
+                let node = SCNNode(geometry: pair.key.geometry)
+                let x = Double.random(in: -0.49...0.49)
+                
+                let z = sqrt(pow(0.49, 2) - pow(x, 2))
+                
+                node.position = SCNVector3(x, Double.random(in: 0.2...1.2), z)
+                
+                let rotationRange = (-Double.pi)...Double.pi
+                node.eulerAngles = SCNVector3(Double.random(in: rotationRange), Double.random(in: rotationRange), Double.random(in: rotationRange))
+                
+                bubbleNode.addChildNode(node)
+            }
+        }
+        
+        bubblesAdded = cup.bubbles
+        cup.bubblesUpdated = false
+    }
+    
+    public func update() {
+        if cup.liquidsUpdated {
+            updateLiquidNode()
+        }
+        
+        if cup.bubblesUpdated {
+            updateBubbleNode()
+        }
+    }
+    
     public override convenience init() {
         self.init(cup: Cup())
     }
@@ -82,6 +118,8 @@ public class CupNode: MovableNode {
         addChildNode(liquidNode)
         
         physicsBody = SCNPhysicsBody(type: .dynamic, shape: SCNPhysicsShape(geometry: CupNode.cupGeometry, options: nil))
+        
+        addChildNode(bubbleNode)
         
         cupNode.renderingOrder = 1
         

@@ -116,7 +116,6 @@ public class DispenserNode: MovableNode {
         }) {
             let cupNode = result.node as! CupNode
             cupNode.cup.add(liquid, amount: liquidToAdd)
-            cupNode.updateLiquidNode()
             if particleNode.parent == nil {
                 addChildNode(particleNode)
             }

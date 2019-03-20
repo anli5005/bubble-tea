@@ -18,6 +18,12 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
             }
         }
         
+        renderer.scene?.rootNode.enumerateChildNodes { node, _ in
+            if let cupNode = node as? CupNode {
+                cupNode.update()
+            }
+        }
+        
         lastFrame = time
     }
     

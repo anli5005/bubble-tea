@@ -25,14 +25,11 @@ let strawberry = LiquidType(color: CGColor(red: 1.0, green: 0.4, blue: 0.7, alph
 let mango = LiquidType(color: CGColor(red: 1.0, green: 0.8, blue: 0.5, alpha: 1.0))
 let banana = LiquidType(color: CGColor(red: 1.0, green: 1.0, blue: 0.7, alpha: 1.0))
 
-func addCup() {
+func addCup() -> CupNode {
     let cup = CupNode()
     cup.position.y = 10
     scene.rootNode.addChildNode(cup)
-}
-
-for _ in 1...15 {
-    addCup()
+    return cup
 }
 
 var pos = -6
@@ -44,3 +41,15 @@ for liquid in [strawberry, mango, banana, tea, milk, sugar, vanilla] {
 }
 
 PlaygroundSupport.PlaygroundPage.current.liveView = sceneView
+
+let cupNode = addCup()
+
+let tapioca = BubbleType(geometry: SCNSphere(radius: 0.1))
+tapioca.geometry.firstMaterial!.diffuse.contents = CGColor.black
+
+cupNode.cup.add(tapioca, amount: 20)
+
+let redBean = BubbleType(geometry: SCNCapsule(capRadius: 0.02, height: 0.07))
+redBean.geometry.firstMaterial!.diffuse.contents = CGColor(red: 0.3, green: 0, blue: 0, alpha: 1.0)
+
+cupNode.cup.add(redBean, amount: 20)
