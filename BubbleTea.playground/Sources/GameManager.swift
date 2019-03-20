@@ -3,12 +3,23 @@ import SceneKit
 public protocol Movable {}
 public class MovableNode: SCNNode, Movable {}
 
-public class GameManager {
+public class GameManager: NSObject, SCNSceneRendererDelegate {
     let sceneView: SCNView
     private var currentlyMoving: SCNNode?
     private var currentPhysicsBody: SCNPhysicsBody?
+    private var lastFrame: TimeInterval?
     
     public var blendThreshold: CGFloat = 5500
+    
+    public func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+        renderer.scene?.rootNode.enumerateChildNodes { node, _ in
+            if let dispenser = node as? DispenserNode {
+                dispenser.runHitTest(in: renderer.scene!.physicsWorld, liquidToAdd: Double((time - (lastFrame ?? time)) * 0.25))
+            }
+        }
+        
+        lastFrame = time
+    }
     
     @objc public func pan(sender: NSPanGestureRecognizer) {
         let location = sender.location(in: sceneView)
@@ -27,7 +38,7 @@ public class GameManager {
                         movable = currentNode
                         break
                     }
-                    currentNode = currentNode!.parent
+                    currentNode = currentNode?.parent
                 }
                 
                 if let movable = movable {
@@ -68,5 +79,9 @@ public class GameManager {
     
     public init(view: SCNView) {
         sceneView = view
+        
+        super.init()
+        
+        sceneView.delegate = self
     }
 }

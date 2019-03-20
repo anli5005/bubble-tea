@@ -7,6 +7,7 @@ let sceneView = SCNView(frame: CGRect(x:0 , y:0, width: 640, height: 480))
 let scene = SCNScene(named: "Test.scn")!
 let manager = GameManager(view: sceneView)
 
+sceneView.rendersContinuously = true
 sceneView.showsStatistics = true
 
 // Present the scene
@@ -23,17 +24,27 @@ let unicorn = LiquidType(color: CGColor(red: 0.5, green: 0.0, blue: 1.0, alpha: 
 let red = LiquidType(color: CGColor(red: 1.0, green: 0.0, blue: 0.0, alpha: 1.0))
 let yellow = LiquidType(color: CGColor(red: 1.0, green: 1.0, blue: 0.0, alpha: 1.0))
 
-PlaygroundSupport.PlaygroundPage.current.liveView = sceneView
-
 func addCup() {
     let cup = CupNode()
     cup.position.y = 10
-    cup.cup.add(tea, amount: 0.6)
-    cup.cup.add(milk, amount: 0.4)
-    cup.updateLiquidNode()
     scene.rootNode.addChildNode(cup)
 }
 
-for i in 1...10 {
+for _ in 1...15 {
     addCup()
 }
+
+let teaDispenser = DispenserNode(liquid: tea)
+teaDispenser.position = SCNVector3(-1, 4, -2)
+scene.rootNode.addChildNode(teaDispenser)
+
+let milkDispenser = DispenserNode(liquid: milk)
+milkDispenser.position = SCNVector3(1, 4, -2)
+scene.rootNode.addChildNode(milkDispenser)
+
+let purpleDispenser = DispenserNode(liquid: unicorn)
+purpleDispenser.position = SCNVector3(-3, 4, -2)
+scene.rootNode.addChildNode(purpleDispenser)
+
+PlaygroundSupport.PlaygroundPage.current.liveView = sceneView
+

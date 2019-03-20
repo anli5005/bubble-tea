@@ -104,5 +104,9 @@ public class Cup {
         liquidsUpdated = true
     }
     
+    public var totalLiquid: Double {
+        return liquids.reduce(0.0) { $0 + $1.amount }
+    }
+    
     public init() {}
 }
