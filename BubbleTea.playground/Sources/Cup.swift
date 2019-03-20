@@ -59,6 +59,12 @@ public class Cup {
     }
     
     public var liquidsUpdated = false
+    public var bubblesUpdated = false
+    
+    private var _bubbles = [BubbleType: Int]()
+    public var bubbles: [BubbleType: Int] {
+        return _bubbles
+    }
     
     public func add(_ liquid: LiquidType, amount: Double) {
         if liquids.last?.type == liquid {
@@ -106,6 +112,14 @@ public class Cup {
     
     public var totalLiquid: Double {
         return liquids.reduce(0.0) { $0 + $1.amount }
+    }
+    
+    public func add(_ bubbles: BubbleType, amount: Int = 1) {
+        _bubbles[bubbles] = (_bubbles[bubbles] ?? 0) + amount
+    }
+    
+    public var bubbleCount: Int {
+        return bubbles.reduce(0) { $0 + $1.value }
     }
     
     public init() {}

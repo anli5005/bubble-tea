@@ -33,7 +33,7 @@ public class DispenserNode: MovableNode {
         super.init()
     }
     
-    public init(liquid: LiquidType) {
+    public init(liquid: LiquidType, isLabelled: Bool = true) {
         self.liquid = liquid
         
         super.init()
@@ -45,6 +45,25 @@ public class DispenserNode: MovableNode {
         let cylinderNode = SCNNode(geometry: cylinder)
         cylinderNode.position = SCNVector3(0, 0, 0)
         addChildNode(cylinderNode)
+        
+        if isLabelled {
+            if let image = liquid.image {
+                let ctx = CGContext(data: nil, width: Int(cylinder.radius * 2 * CGFloat.pi * 512 / cylinder.height), height: 512, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue)
+                if let context = ctx {
+                    context.setFillColor(CGColor(gray: 0.2, alpha: 1.0))
+                    context.fill(CGRect(x: 0, y: 0, width: context.width, height: context.height))
+                    
+                    let rect = CGRect(origin: CGPoint(x: (CGFloat(context.width) - image.size.width) / 2, y: (CGFloat(context.height) - image.size.height)), size: image.size)
+                    if let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+                        context.draw(cgImage, in: rect)
+                    }
+                    
+                    if let finalImage = context.makeImage() {
+                        sideMaterial.diffuse.contents = finalImage
+                    }
+                }
+            }
+        }
         
         let pipe = SCNCylinder(radius: 0.1, height: 1.5)
         pipe.materials = [DispenserNode.blackMaterial]
@@ -80,7 +99,7 @@ public class DispenserNode: MovableNode {
         let start = presentation.worldPosition + SCNVector3(0, -0.55, 2)
         let end = presentation.worldPosition + SCNVector3(0, -3, 2)
         
-        let results = physicsWorld.rayTestWithSegment(from: start, to: end, options: [.searchMode: SCNPhysicsWorld.TestSearchMode.all])
+        let results = physicsWorld.rayTestWithSegment(from: start, to: end, options: [.searchMode: SCNPhysicsWorld.TestSearchMode.closest])
         if let result = results.first(where: { result in
             var currentNode: SCNNode? = result.node
             
