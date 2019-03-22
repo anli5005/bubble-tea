@@ -77,7 +77,7 @@ public class CupNode: MovableNode {
                 let node = SCNNode(geometry: pair.key.geometry)
                 let x = Double.random(in: -0.49...0.49)
                 
-                let z = sqrt(pow(0.49, 2) - pow(x, 2))
+                let z = sqrt(pow(0.49, 2) - pow(x, 2)) * (Bool.random() ? 1 : -1)
                 
                 node.position = SCNVector3(x, Double.random(in: 0.2...1.2), z)
                 

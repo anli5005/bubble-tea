@@ -1,7 +1,7 @@
 import SceneKit
 
 public class DispenserNode: MovableNode {
-    public static let cylinderSideMaterial: SCNMaterial = {
+    static let cylinderSideMaterial: SCNMaterial = {
         let material = SCNMaterial()
         material.diffuse.contents = CGColor(gray: 0.2, alpha: 1.0)
         material.metalness.contents = 0.7
@@ -9,7 +9,7 @@ public class DispenserNode: MovableNode {
         return material
     }()
     
-    public static let cylinderBaseMaterial: SCNMaterial = {
+    static let cylinderBaseMaterial: SCNMaterial = {
         let material = SCNMaterial()
         material.diffuse.contents = CGColor(gray: 0.5, alpha: 1.0)
         material.metalness.contents = 0.7
@@ -17,7 +17,7 @@ public class DispenserNode: MovableNode {
         return material
     }()
     
-    public static let blackMaterial: SCNMaterial = {
+    static let blackMaterial: SCNMaterial = {
         let material = SCNMaterial()
         material.diffuse.contents = CGColor.black
         material.shininess = 0.7
@@ -40,7 +40,7 @@ public class DispenserNode: MovableNode {
         
         let sideMaterial = DispenserNode.cylinderSideMaterial.copy() as! SCNMaterial
         
-        let cylinder = SCNCylinder(radius: 1, height: 3)
+        let cylinder = SCNCylinder(radius: 0.9, height: 3)
         cylinder.materials = [sideMaterial, DispenserNode.cylinderBaseMaterial, DispenserNode.cylinderBaseMaterial]
         let cylinderNode = SCNNode(geometry: cylinder)
         cylinderNode.position = SCNVector3(0, 0, 0)
@@ -96,8 +96,8 @@ public class DispenserNode: MovableNode {
     }
     
     func runHitTest(in physicsWorld: SCNPhysicsWorld, liquidToAdd: Double) {
-        let start = presentation.worldPosition + SCNVector3(0, -0.55, 2)
-        let end = presentation.worldPosition + SCNVector3(0, -3, 2)
+        let start = presentation.worldPosition + SCNVector3(0, 1, 2)
+        let end = presentation.worldPosition + SCNVector3(0, -1, 2)
         
         let results = physicsWorld.rayTestWithSegment(from: start, to: end, options: [.searchMode: SCNPhysicsWorld.TestSearchMode.closest])
         if let result = results.first(where: { result in

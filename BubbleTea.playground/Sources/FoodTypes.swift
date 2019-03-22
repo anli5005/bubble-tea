@@ -24,10 +24,10 @@ public class LiquidType: FoodType {
 public class BubbleType: FoodType {
     public var name: String?
     public let geometry: SCNGeometry
-    public let physicsGeometry: SCNGeometry
+    public var image: NSImage?
     
-    public init(geometry: SCNGeometry, physicsGeometry: SCNGeometry? = nil) {
+    public init(geometry: SCNGeometry, image: NSImage? = nil) {
         self.geometry = geometry
-        self.physicsGeometry = physicsGeometry ?? geometry
+        self.image = image
     }
 }
