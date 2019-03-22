@@ -1,9 +1,16 @@
 import CoreGraphics
 
+/// Represents a cup made in-game.
 public class Cup {
+    /// A homogenous liquid mixture of one or more types of liquids.
     public struct Liquid {
+        /// Types of liquids represented in the mixutre and their proportions.
         let types: [LiquidType: Double]
+        
+        /// Amount of liquid represented.
         var amount: Double
+        
+        /// Color of the liquid represented.
         let color: CGColor
         
         var type: LiquidType? {

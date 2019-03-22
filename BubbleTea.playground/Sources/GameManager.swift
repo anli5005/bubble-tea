@@ -1,30 +1,17 @@
 import SceneKit
 import SpriteKit
 
-public protocol Movable {}
-public class MovableNode: SCNNode, Movable {}
-
-public struct Level {
-    public let scene: SCNScene
-    public let liquids: [LiquidType]
-    public let maxLiquidsPerOrder: Int
-    public let bubbles: [BubbleType]
-    public let maxBubblesPerOrder: Int
-    public let needsShake: Set<Bool>
-    public let orderFrequency: Double
-    public let orderTimeRange: ClosedRange<Double>
-    public let name: String?
+class OverlayScene: SKScene {
+    static let orderNodeName = "order"
     
-    public init(scene: SCNScene, liquids: [LiquidType] = [], maxLiquidsPerOrder: Int = Int.max, bubbles: [BubbleType] = [], maxBubblesPerOrder: Int = Int.max, needsShake: Set<Bool> = [true, false], orderFrequency: Double = 1.0, orderTimeRange: ClosedRange<Double> = 30.0...60.0, name: String? = nil) {
-        self.scene = scene
-        self.liquids = liquids
-        self.maxLiquidsPerOrder = maxLiquidsPerOrder
-        self.bubbles = bubbles
-        self.maxBubblesPerOrder = maxBubblesPerOrder
-        self.needsShake = needsShake
-        self.orderFrequency = orderFrequency
-        self.orderTimeRange = orderTimeRange
-        self.name = name
+    override func update(_ currentTime: TimeInterval) {
+        enumerateChildNodes(withName: OverlayScene.orderNodeName, using: { node, _ in
+            if let orderNode = node as? OrderNode {
+                let order = orderNode.order
+                let progress = (currentTime - order.startTime) / (order.endTime - order.startTime)
+                orderNode.updateProgressBar(progress: min(max(1 - progress, 0.0), 1.0))
+            }
+        })
     }
 }
 
@@ -37,9 +24,11 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
     
     private var currentOrderIndex = 0
     private var orderQueue = [Order]()
+    public var currentOrders: [Order] {
+        return orderQueue
+    }
     
-    private var currentlyMoving: SCNNode?
-    private var currentPhysicsBody: SCNPhysicsBody?
+    private var currentlyMoving: Movable?
     private var lastFrame: TimeInterval?
     
     public var blendThreshold: CGFloat = 5500
@@ -47,11 +36,13 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
     private var currentBubbleType: BubbleType?
     private let bubbleNodeZ: CGFloat = 0
     
+    private let orderLimit = 5
+    
     public func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
         let delta = time - (lastFrame ?? time)
         
         renderer.scene?.rootNode.enumerateChildNodes { node, _ in
-            if let dispenser = node as? DispenserNode {
+            if let dispenser = node as? LiquidDispenserNode {
                 dispenser.runHitTest(in: renderer.scene!.physicsWorld, liquidToAdd: Double(delta * 0.25))
             }
         }
@@ -63,15 +54,17 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
         }
         
         if let level = _level {
-            if Double.random(in: 0.0...(7.0 / level.orderFrequency)) < delta {
-                currentOrderIndex += 1
-                addOrder(Order(index: currentOrderIndex, randomWithPossibleLiquids: Set(level.liquids), maxLiquids: level.maxLiquidsPerOrder, needsShake: level.needsShake, bubbles: Set(level.bubbles), maxBubbles: level.maxBubblesPerOrder, deadline: time + TimeInterval.random(in: level.orderTimeRange)))
+            if orderQueue.count < orderLimit {
+                if Double.random(in: 0.0...(7.0 / level.orderFrequency)) < delta {
+                    currentOrderIndex += 1
+                    addOrder(Order(index: currentOrderIndex, randomWithPossibleLiquids: Set(level.liquids), maxLiquids: level.maxLiquidsPerOrder, needsShake: level.needsShake, bubbles: Set(level.bubbles), maxBubbles: level.maxBubblesPerOrder, timeLimit: level.orderTimeRange, startTime: time, price: 1, reputation: 1))
+                }
             }
         }
         
         orderQueue.removeAll(where: { order in
-            if time > order.deadline {
-                failOrder(order)
+            if time > order.endTime {
+                orderOverdue(order)
                 return true
             }
             
@@ -81,12 +74,61 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
         lastFrame = time
     }
     
-    private func addOrder(_ order: Order) {
-        orderQueue.append(order)
+    private var orderNodes = [OrderNode]()
+    
+    private func calculateOrderNodeX(index: Int) -> CGFloat {
+        return CGFloat(index) * (OrderNode.width + 8.0) + 16.0
     }
     
-    private func failOrder(_ order: Order) {
-        // TODO: Implement
+    private func addOrder(_ order: Order) {
+        orderQueue.append(order)
+        
+        let node = OrderNode(order: order)
+        node.name = OverlayScene.orderNodeName
+        node.position = CGPoint(x: overlayScene.size.width, y: 16)
+        node.run(SKAction.moveTo(x: calculateOrderNodeX(index: orderNodes.count), duration: 0.3))
+        orderNodes.append(node)
+        overlayScene.addChild(node)
+    }
+    
+    private func updateOrderNodePositions() {
+        for (index, node) in orderNodes.enumerated() {
+            node.run(SKAction.moveTo(x: calculateOrderNodeX(index: index), duration: 0.4))
+        }
+    }
+    
+    private func orderOverdue(_ order: Order) {
+        if let index = orderNodes.firstIndex(where: { $0.order === order }) {
+            let node = orderNodes.remove(at: index)
+            node.backgroundNode.fillColor = .red
+            node.run(SKAction.sequence([SKAction.fadeOut(withDuration: 1.0), SKAction.removeFromParent()]))
+            updateOrderNodePositions()
+        }
+    }
+    
+    private func orderFailed(_ order: Order, reason: Order.CheckResult) {
+        if let index = orderNodes.firstIndex(where: { $0.order === order }) {
+            let node = orderNodes.remove(at: index)
+            node.backgroundNode.fillColor = .yellow
+            node.run(SKAction.sequence([SKAction.fadeOut(withDuration: 1.0), SKAction.removeFromParent()]))
+            updateOrderNodePositions()
+        }
+    }
+    
+    private func orderFulfilled(_ order: Order) {
+        if let index = orderNodes.firstIndex(where: { $0.order === order }) {
+            let node = orderNodes.remove(at: index)
+            node.backgroundNode.fillColor = .green
+            node.run(SKAction.sequence([SKAction.fadeOut(withDuration: 1.0), SKAction.removeFromParent()]))
+            updateOrderNodePositions()
+        }
+    }
+    
+    public func submit(cup: Cup, for order: Order) -> Order.CheckResult {
+        orderQueue.removeAll(where: {$0 === order})
+        let result = order.check(cup: cup)
+        result.isValid ? orderFulfilled(order) : orderFailed(order, reason: result)
+        return result
     }
     
     @objc public func pan(sender: NSPanGestureRecognizer) {
@@ -97,12 +139,12 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
             let _ = hitTest.first(where: { result in
                 let node = result.node
                 
-                var movable: SCNNode?
+                var movable: Movable?
                 
                 var currentNode: SCNNode? = node
                 
                 while currentNode != nil {
-                    if let bubbleBox = currentNode as? BubbleBoxNode {
+                    if let bubbleBox = currentNode as? BubbleDispenserNode {
                         let currentBubbleNode = MovableNode()
                         currentBubbleType = bubbleBox.bubbleType
                         currentBubbleNode.position = SCNVector3(bubbleBox.position.x, bubbleBox.position.y + 0.5, bubbleNodeZ)
@@ -123,17 +165,18 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
                         
                         break
                     }
-                    if currentNode is Movable {
-                        movable = currentNode
-                        break
+                    if let currentNodeAsMovable = currentNode as? Movable {
+                        if currentNodeAsMovable.isMovable {
+                            movable = currentNodeAsMovable
+                            break
+                        }
                     }
                     currentNode = currentNode?.parent
                 }
                 
                 if let movable = movable {
                     currentlyMoving = movable
-                    currentPhysicsBody = movable.physicsBody
-                    movable.physicsBody = nil
+                    movable.startMoving()
                     print("Now moving \(movable)")
                     
                     return true
@@ -147,7 +190,7 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
             let z = sceneView.projectPoint(current.position).z
             var newPos = sceneView.unprojectPoint(SCNVector3(location.x, location.y, z))
             newPos.z = current.position.z
-            current.position = newPos
+            current.move(to: newPos)
             
             if let cupNode = current as? CupNode {
                 let velocity = sender.velocity(in: sceneView)
@@ -161,7 +204,7 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
         
         if sender.state != .began && sender.state != .changed {
             if let type = currentBubbleType {
-                if let node = currentlyMoving {
+                if let node = currentlyMoving as? SCNNode {
                     let results = sceneView.scene?.physicsWorld.rayTestWithSegment(from: node.position + SCNVector3(0, 1, 0), to: node.position + SCNVector3(0, -2.5, 0), options: [.searchMode: SCNPhysicsWorld.TestSearchMode.all])
                     if let cupNode = results?.filter({$0.node is CupNode}).min(by: {$0.node.position |-| node.position > $1.node.position |-| node.position})?.node as? CupNode {
                         cupNode.cup.add(type, amount: 20)
@@ -171,16 +214,15 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
                 }
             }
             
-            currentlyMoving?.physicsBody = currentPhysicsBody
+            currentlyMoving?.endMoving()
             currentlyMoving = nil
-            currentPhysicsBody = nil
             currentBubbleType = nil
         }
     }
     
     public init(view: SCNView) {
         sceneView = view
-        overlayScene = SKScene(size: view.frame.size)
+        overlayScene = OverlayScene(size: view.frame.size)
         
         super.init()
         
@@ -197,8 +239,8 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
     }
     
     public func reset() {
+        currentlyMoving?.endMoving()
         currentlyMoving = nil
-        currentPhysicsBody = nil
         currentBubbleType = nil
         lastFrame = nil
         
@@ -209,6 +251,8 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
         
         currentOrderIndex = 0
         orderQueue = [Order]()
+        orderNodes.forEach { $0.removeFromParent() }
+        orderNodes = [OrderNode]()
     }
     
     public func loadLevel(_ level: Level) {

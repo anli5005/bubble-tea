@@ -126,8 +126,16 @@ public class CupNode: MovableNode {
         updateLiquidNode()
     }
     
+    // I don't use instances of NSCoder in this playground, and so I've simply added a stub initializer to satisfy the init(coder:) requirement. However, if I were to continue development on this project, I would look into making each of my nodes encodable and decodable with an NSCoder.
     public required init?(coder aDecoder: NSCoder) {
         cup = Cup()
         super.init(coder: aDecoder)
+    }
+    
+    internal var movable = true
+    public override var isMovable: Bool {
+        get {
+            return movable
+        }
     }
 }
