@@ -1,6 +1,6 @@
 import SceneKit
   
-public struct Level {
+public class Level {
     public let scene: SCNScene
     public let liquids: [LiquidType]
     public let maxLiquidsPerOrder: Int
@@ -10,6 +10,8 @@ public struct Level {
     public let orderFrequency: Double
     public let orderTimeRange: ClosedRange<Double>
     public let name: String?
+    internal var cupGenerator: CupGenerator?
+    internal var cupSubmitter: CupSubmitter?
     
     public init(scene: SCNScene, liquids: [LiquidType] = [], maxLiquidsPerOrder: Int = Int.max, bubbles: [BubbleType] = [], maxBubblesPerOrder: Int = Int.max, needsShake: Set<Bool> = [true, false], orderFrequency: Double = 1.0, orderTimeRange: ClosedRange<Double> = 30.0...60.0, name: String? = nil) {
         self.scene = scene
@@ -23,20 +25,31 @@ public struct Level {
         self.name = name
     }
     
-    public func generateLiquidDispensers(in node: SCNNode, labelled: Bool = true) {
+    public func generateLiquidDispensers(at position: SCNVector3, labelled: Bool = true) {
         for (index, liquid) in liquids.enumerated() {
             let dispenser = LiquidDispenserNode(liquid: liquid, isLabelled: labelled)
-            dispenser.position = node.position + SCNVector3(2 * (Double(index) - Double(liquids.count) / 2 + 0.5), 1.5, 0)
-            dispenser.yMoveLimit = dispenser.position.y - 1.5
+            dispenser.position = position + SCNVector3(2 * (Double(index) - Double(liquids.count) / 2 + 0.5), 1.5, 0)
             scene.rootNode.addChildNode(dispenser)
         }
     }
     
-    public func generateBubbleDispensers(in node: SCNNode, labelled: Bool = true) {
+    public func generateBubbleDispensers(at position: SCNVector3, labelled: Bool = true) {
         for (index, bubble) in bubbles.enumerated() {
             let dispenser = BubbleDispenserNode(bubbleType: bubble, isLabelled: labelled)
-            dispenser.position = node.position + SCNVector3(Double(index) - Double(bubbles.count) / 2 + 0.5, 1.5, 0)
+            dispenser.position = position + SCNVector3(Double(index) - Double(bubbles.count) / 2 + 0.5, 0.5, 0)
             scene.rootNode.addChildNode(dispenser)
         }
+    }
+    
+    public func generateCupGenerator(at position: SCNVector3) {
+        cupGenerator = CupGenerator()
+        cupGenerator!.node.position = position + SCNVector3(0, 0.1, 0)
+        scene.rootNode.addChildNode(cupGenerator!.node)
+    }
+    
+    public func generateCupSubmitter(at position: SCNVector3) {
+        cupSubmitter = CupSubmitter()
+        cupSubmitter!.node.position = position + SCNVector3(0, 0.15, 0)
+        scene.rootNode.addChildNode(cupSubmitter!.node)
     }
 }

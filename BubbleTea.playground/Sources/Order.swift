@@ -63,7 +63,7 @@ public class Order {
     }
     
     public func check(cup: Cup) -> CheckResult {
-        guard cup.totalLiquid >= 1 else {
+        guard cup.totalLiquid >= 0.9 else {
             return .notFull
         }
         

@@ -1,9 +1,9 @@
 import SceneKit
 
-public class LiquidDispenserNode: MovableNode {
+public class LiquidDispenserNode: SCNNode {
     static let cylinderSideMaterial: SCNMaterial = {
         let material = SCNMaterial()
-        material.diffuse.contents = CGColor(gray: 0.2, alpha: 1.0)
+        material.diffuse.contents = CGColor(gray: 0.6, alpha: 1.0)
         material.metalness.contents = 0.7
         material.roughness.contents = 0.5
         return material
@@ -11,7 +11,7 @@ public class LiquidDispenserNode: MovableNode {
     
     static let cylinderBaseMaterial: SCNMaterial = {
         let material = SCNMaterial()
-        material.diffuse.contents = CGColor(gray: 0.5, alpha: 1.0)
+        material.diffuse.contents = CGColor(gray: 0.8, alpha: 1.0)
         material.metalness.contents = 0.7
         material.roughness.contents = 0.5
         return material
@@ -26,8 +26,6 @@ public class LiquidDispenserNode: MovableNode {
     
     let liquid: LiquidType
     private let particleNode = SCNNode()
-    
-    var yMoveLimit: CGFloat? = nil
     
     // This initializer is never used, and only exists since a fatal error occurs if this is not present.
     public override init() {
@@ -82,7 +80,7 @@ public class LiquidDispenserNode: MovableNode {
         addChildNode(coneNode)
         
         let shape = SCNPhysicsShape(geometry: cylinder, options: nil)
-        physicsBody = SCNPhysicsBody(type: .dynamic, shape: shape)
+        physicsBody = SCNPhysicsBody(type: .static, shape: shape)
         physicsBody!.rollingFriction = 1
         physicsBody!.friction = 0.5
         
@@ -101,6 +99,8 @@ public class LiquidDispenserNode: MovableNode {
         super.init(coder: aDecoder)
     }
     
+    private var liquidAdded = 0.0
+    private let liquidAddDelay = 0.1
     func runHitTest(in physicsWorld: SCNPhysicsWorld, liquidToAdd: Double) {
         let start = presentation.worldPosition + SCNVector3(0, 1, 2)
         let end = presentation.worldPosition + SCNVector3(0, -1, 2)
@@ -120,26 +120,19 @@ public class LiquidDispenserNode: MovableNode {
             
             return false
         }) {
-            let cupNode = result.node as! CupNode
-            cupNode.cup.add(liquid, amount: liquidToAdd)
-            if particleNode.parent == nil {
-                addChildNode(particleNode)
+            liquidAdded += liquidToAdd
+            if liquidAdded > liquidAddDelay {
+                let cupNode = result.node as! CupNode
+                cupNode.cup.add(liquid, amount: liquidToAdd)
+                if particleNode.parent == nil {
+                    addChildNode(particleNode)
+                }
             }
         } else {
+            liquidAdded = 0
             if particleNode.parent != nil {
                 particleNode.removeFromParentNode()
             }
-        }
-    }
-    
-    public override func move(to pos: SCNVector3) {
-        eulerAngles = SCNVector3(0, 0, 0)
-        if let limit = yMoveLimit {
-            var adjustedPos = pos
-            adjustedPos.y = max(pos.y, limit)
-            super.move(to: adjustedPos)
-        } else {
-            super.move(to: pos)
         }
     }
 }

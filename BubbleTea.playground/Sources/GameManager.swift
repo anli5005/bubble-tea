@@ -2,10 +2,12 @@ import SceneKit
 import SpriteKit
 
 class OverlayScene: SKScene {
-    static let orderNodeName = "order"
+    internal weak var gameManager: GameManager?
+    
+    internal static let orderNodeName = "order"
     
     override func update(_ currentTime: TimeInterval) {
-        enumerateChildNodes(withName: OverlayScene.orderNodeName, using: { node, _ in
+        childNode(withName: "hud")?.enumerateChildNodes(withName: OverlayScene.orderNodeName, using: { node, _ in
             if let orderNode = node as? OrderNode {
                 let order = orderNode.order
                 let progress = (currentTime - order.startTime) / (order.endTime - order.startTime)
@@ -13,11 +15,18 @@ class OverlayScene: SKScene {
             }
         })
     }
+    
+    override func mouseDown(with event: NSEvent) {
+        super.mouseDown(with: event)
+        if let orderNode = nodes(at: event.location(in: self)).first(where: { $0 is OrderNode }) as? OrderNode {
+            gameManager?.selectOrder(orderNode.order)
+        }
+    }
 }
 
 public class GameManager: NSObject, SCNSceneRendererDelegate {
     let sceneView: SCNView
-    let overlayScene: SKScene
+    let overlayScene: OverlayScene
     let hudNode = SKNode()
     
     private var _level: Level?
@@ -37,6 +46,9 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
     private let bubbleNodeZ: CGFloat = 0
     
     private let orderLimit = 5
+    
+    private let selectOrderPromptNode: SKShapeNode
+    private var cupNodeToSubmit: CupNode?
     
     public func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
         let delta = time - (lastFrame ?? time)
@@ -59,6 +71,20 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
                     currentOrderIndex += 1
                     addOrder(Order(index: currentOrderIndex, randomWithPossibleLiquids: Set(level.liquids), maxLiquids: level.maxLiquidsPerOrder, needsShake: level.needsShake, bubbles: Set(level.bubbles), maxBubbles: level.maxBubblesPerOrder, timeLimit: level.orderTimeRange, startTime: time, price: 1, reputation: 1))
                 }
+            }
+            
+            level.cupGenerator?.update(physicsWorld: level.scene.physicsWorld)
+            
+            if let cupNode = level.cupSubmitter?.cupOnNode(physicsWorld: level.scene.physicsWorld) {
+                if cupNodeToSubmit == nil {
+                    selectOrderPromptNode.run(SKAction.moveTo(y: 0, duration: 0.3))
+                }
+                cupNodeToSubmit = cupNode
+            } else {
+                if cupNodeToSubmit != nil {
+                    selectOrderPromptNode.run(SKAction.moveTo(y: -selectOrderPromptNode.calculateAccumulatedFrame().height, duration: 0.3))
+                }
+                cupNodeToSubmit = nil
             }
         }
         
@@ -88,7 +114,7 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
         node.position = CGPoint(x: overlayScene.size.width, y: 16)
         node.run(SKAction.moveTo(x: calculateOrderNodeX(index: orderNodes.count), duration: 0.3))
         orderNodes.append(node)
-        overlayScene.addChild(node)
+        hudNode.addChild(node)
     }
     
     private func updateOrderNodePositions() {
@@ -121,6 +147,22 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
             node.backgroundNode.fillColor = .green
             node.run(SKAction.sequence([SKAction.fadeOut(withDuration: 1.0), SKAction.removeFromParent()]))
             updateOrderNodePositions()
+        }
+    }
+    
+    internal func selectOrder(_ order: Order) {
+        if let cupNode = cupNodeToSubmit {
+            let _ = submit(cup: cupNode.cup, for: order)
+            cupNode.physicsBody = nil
+            cupNodeToSubmit = nil
+            selectOrderPromptNode.run(SKAction.moveTo(y: -selectOrderPromptNode.calculateAccumulatedFrame().height, duration: 0.15))
+            SCNTransaction.begin()
+            SCNTransaction.animationDuration = 0.5
+            cupNode.position.x = 20
+            SCNTransaction.completionBlock = {
+                cupNode.removeFromParentNode()
+            }
+            SCNTransaction.commit()
         }
     }
     
@@ -205,7 +247,7 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
         if sender.state != .began && sender.state != .changed {
             if let type = currentBubbleType {
                 if let node = currentlyMoving as? SCNNode {
-                    let results = sceneView.scene?.physicsWorld.rayTestWithSegment(from: node.position + SCNVector3(0, 1, 0), to: node.position + SCNVector3(0, -2.5, 0), options: [.searchMode: SCNPhysicsWorld.TestSearchMode.all])
+                    let results = sceneView.scene?.physicsWorld.rayTestWithSegment(from: node.position + SCNVector3(0, 1.5, 0), to: node.position + SCNVector3(0, -3, 0), options: [.searchMode: SCNPhysicsWorld.TestSearchMode.all])
                     if let cupNode = results?.filter({$0.node is CupNode}).min(by: {$0.node.position |-| node.position > $1.node.position |-| node.position})?.node as? CupNode {
                         cupNode.cup.add(type, amount: 20)
                     }
@@ -223,6 +265,7 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
     public init(view: SCNView) {
         sceneView = view
         overlayScene = OverlayScene(size: view.frame.size)
+        selectOrderPromptNode = SKShapeNode(rect: CGRect(x: 0, y: 0, width: sceneView.bounds.width, height: 200))
         
         super.init()
         
@@ -231,11 +274,29 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
         sceneView.delegate = self
         sceneView.overlaySKScene = overlayScene
         
+        overlayScene.gameManager = self
+        
         let panGestureRecognizer = NSPanGestureRecognizer(target: self, action: #selector(GameManager.pan(sender:)))
         sceneView.addGestureRecognizer(panGestureRecognizer)
         
         hudNode.alpha = 0
+        hudNode.name = "hud"
         overlayScene.addChild(hudNode)
+        
+        selectOrderPromptNode.fillColor = .black
+        selectOrderPromptNode.strokeColor = .clear
+        selectOrderPromptNode.position.y = -selectOrderPromptNode.calculateAccumulatedFrame().height
+        
+        let promptLabelNode = SKLabelNode(text: "Select an order:")
+        promptLabelNode.fontSize = 16
+        promptLabelNode.fontName = NSFont.systemFont(ofSize: promptLabelNode.fontSize, weight: .medium).fontName
+        promptLabelNode.fontColor = .white
+        promptLabelNode.horizontalAlignmentMode = .center
+        promptLabelNode.verticalAlignmentMode = .center
+        promptLabelNode.position = CGPoint(x: sceneView.bounds.width / 2, y: 177)
+        selectOrderPromptNode.addChild(promptLabelNode)
+        
+        hudNode.addChild(selectOrderPromptNode)
     }
     
     public func reset() {
@@ -253,6 +314,9 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
         orderQueue = [Order]()
         orderNodes.forEach { $0.removeFromParent() }
         orderNodes = [OrderNode]()
+        
+        cupNodeToSubmit = nil
+        selectOrderPromptNode.position.y = -selectOrderPromptNode.calculateAccumulatedFrame().height
     }
     
     public func loadLevel(_ level: Level) {
