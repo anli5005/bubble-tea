@@ -26,6 +26,7 @@ public class CupNode: MovableNode {
     
     private let liquidNode = SCNNode(geometry: SCNCylinder(radius: 0.5, height: 0))
     private var lastLiquid: CGColor? = nil
+    private var didDraw = false
     
     public func updateLiquidNode() {
         let total = cup.liquids.reduce(0.0) { $0 + $1.amount }
@@ -35,7 +36,7 @@ public class CupNode: MovableNode {
         liquidNode.isHidden = height <= 0
         
         let gradientMaterial = liquidNode.geometry!.materials[0]
-        if cup.liquids.count != 1 || lastLiquid != cup.liquids.first?.color {
+        if cup.liquids.count > 1 {
             let gradientContext = CGContext(data: nil, width: 512, height: 512, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
             let colors = cup.liquids.map { $0.color }
             let locations = cup.liquids.reduce([Double](), { locations, liquid in
@@ -46,11 +47,15 @@ public class CupNode: MovableNode {
             gradientContext!.clear(CGRect(x: 0, y: 0, width: 512, height: 512))
             if let gradient = CGGradient(colorsSpace: gradientContext!.colorSpace!, colors: colors as CFArray, locations: locations) {
                 gradientContext?.drawLinearGradient(gradient, start: CGPoint.zero, end: CGPoint(x: 0, y: 512), options: [])
+                didDraw = true
             }
             
             let image = gradientContext!.makeImage()!
             gradientMaterial.diffuse.contents = image
             gradientMaterial.transparent.contents = image
+        } else if cup.liquids.count == 1 {
+            gradientMaterial.diffuse.contents = cup.liquids[0].color
+            gradientMaterial.transparent.contents = cup.liquids[0].color
         }
         
         let topMaterial = liquidNode.geometry!.materials[1]

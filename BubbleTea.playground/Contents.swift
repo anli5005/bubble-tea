@@ -25,12 +25,16 @@ let sceneView = SCNView(frame: CGRect(x:0 , y:0, width: 640, height: 480))
 let scene = SCNScene(named: "Test.scn")!
 let manager = GameManager(view: sceneView)
 
-sceneView.showsStatistics = true
-
-let level = Level(scene: scene, liquids: [tea, milk, sugar, vanilla, strawberry, mango, banana], maxLiquidsPerOrder: 4, bubbles: [tapioca, redBean, aloe], maxBubblesPerOrder: 3, orderFrequency: 5, orderTimeRange: 60.0...90.0, name: "Test Level")
+let level = Level(scene: scene, liquids: [tea, milk, sugar, vanilla, strawberry, mango, banana], maxLiquidsPerOrder: 4, bubbles: [tapioca, redBean, aloe], maxBubblesPerOrder: 3, orderFrequency: 5, orderTimeRange: 30.0...90.0, targetMoney: 10, timeLimit: nil, name: "Test Level")
 level.generateLiquidDispensers(at: scene.rootNode.childNode(withName: "liquiddispensers", recursively: false)!.position)
 level.generateBubbleDispensers(at: scene.rootNode.childNode(withName: "bubbledispensers", recursively: false)!.position)
 level.generateCupGenerator(at: scene.rootNode.childNode(withName: "cupgenerator", recursively: false)!.position)
 level.generateCupSubmitter(at: scene.rootNode.childNode(withName: "cupsubmitter", recursively: false)!.position)
+level.generateCupTrash(at: scene.rootNode.childNode(withName: "cuptrash", recursively: false)!.position)
+
+let otherScene = SCNScene()
+let otherLevel = Level(scene: otherScene, liquids: [tea], maxLiquidsPerOrder: 1, bubbles: [tapioca], maxBubblesPerOrder: 1, needsShake: [false], orderFrequency: 100, orderTimeRange: 1.0...3.0, reputationLossMultiplier: 5, reputationPerCorrectOrder: 0, targetMoney: Int.max, timeLimit: nil, name: "Impossible Level")
+
+manager.levels = [level, otherLevel]
 manager.loadLevel(level)
 PlaygroundSupport.PlaygroundPage.current.liveView = sceneView

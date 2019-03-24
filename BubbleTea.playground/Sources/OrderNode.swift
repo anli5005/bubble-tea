@@ -40,6 +40,15 @@ class OrderNode: SKShapeNode {
             addChild(textNode)
         }
         
+        let priceNode = SKLabelNode(text: "$\(order.price)")
+        priceNode.fontSize = 14
+        priceNode.fontName = "Menlo"
+        priceNode.fontColor = NSColor(red: 0, green: 0.5, blue: 0, alpha: 1)
+        priceNode.horizontalAlignmentMode = .right
+        priceNode.verticalAlignmentMode = .bottom
+        priceNode.position = CGPoint(x: OrderNode.width - 4, y: 120)
+        addChild(priceNode)
+        
         for (index, liquid) in order.liquids.enumerated() {
             let liquidNode = SKSpriteNode(texture: liquid.image != nil ? SKTexture(image: liquid.image!) : nil)
             liquidNode.scale(to: CGSize(width: 25, height: 25))

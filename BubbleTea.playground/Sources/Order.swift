@@ -7,7 +7,7 @@ public class Order {
     public let bubbles: [BubbleType]
     public let startTime: TimeInterval
     public let endTime: TimeInterval
-    public let price: Int
+    public var price: Int
     public let reputation: Double
     
     public init(index: Int? = nil, liquids: [LiquidType], needsShake: Bool, bubbles: [BubbleType], startTime: TimeInterval, endTime: TimeInterval, price: Int, reputation: Double) {

@@ -9,11 +9,16 @@ public class Level {
     public let needsShake: Set<Bool>
     public let orderFrequency: Double
     public let orderTimeRange: ClosedRange<Double>
+    public let reputationLossMultiplier: Double
+    public let reputationPerCorrectOrder: Double
+    public let targetMoney: Int
+    public let timeLimit: TimeInterval?
     public let name: String?
     internal var cupGenerator: CupGenerator?
     internal var cupSubmitter: CupSubmitter?
+    internal var cupTrash: CupTrash?
     
-    public init(scene: SCNScene, liquids: [LiquidType] = [], maxLiquidsPerOrder: Int = Int.max, bubbles: [BubbleType] = [], maxBubblesPerOrder: Int = Int.max, needsShake: Set<Bool> = [true, false], orderFrequency: Double = 1.0, orderTimeRange: ClosedRange<Double> = 30.0...60.0, name: String? = nil) {
+    public init(scene: SCNScene, liquids: [LiquidType] = [], maxLiquidsPerOrder: Int = Int.max, bubbles: [BubbleType] = [], maxBubblesPerOrder: Int = Int.max, needsShake: Set<Bool> = [true, false], orderFrequency: Double = 1.0, orderTimeRange: ClosedRange<Double> = 30.0...60.0, reputationLossMultiplier: Double = 1.0, reputationPerCorrectOrder: Double = 0.3, targetMoney: Int, timeLimit: TimeInterval? = nil, name: String? = nil) {
         self.scene = scene
         self.liquids = liquids
         self.maxLiquidsPerOrder = maxLiquidsPerOrder
@@ -22,6 +27,10 @@ public class Level {
         self.needsShake = needsShake
         self.orderFrequency = orderFrequency
         self.orderTimeRange = orderTimeRange
+        self.reputationLossMultiplier = reputationLossMultiplier
+        self.reputationPerCorrectOrder = reputationPerCorrectOrder
+        self.targetMoney = targetMoney
+        self.timeLimit = timeLimit
         self.name = name
     }
     
@@ -51,5 +60,11 @@ public class Level {
         cupSubmitter = CupSubmitter()
         cupSubmitter!.node.position = position + SCNVector3(0, 0.15, 0)
         scene.rootNode.addChildNode(cupSubmitter!.node)
+    }
+    
+    public func generateCupTrash(at position: SCNVector3) {
+        cupTrash = CupTrash()
+        cupTrash!.node.position = position + SCNVector3(0, 0.01, 0)
+        scene.rootNode.addChildNode(cupTrash!.node)
     }
 }

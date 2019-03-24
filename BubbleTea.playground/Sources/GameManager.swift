@@ -4,22 +4,41 @@ import SpriteKit
 class OverlayScene: SKScene {
     internal weak var gameManager: GameManager?
     
-    internal static let orderNodeName = "order"
+    internal static let ordersNodeName = "orders"
+    internal static let pauseNodeName = "pause"
+    
+    fileprivate var gameMenu: Menu?
     
     override func update(_ currentTime: TimeInterval) {
-        childNode(withName: "hud")?.enumerateChildNodes(withName: OverlayScene.orderNodeName, using: { node, _ in
+        childNode(withName: "hud")?.childNode(withName: OverlayScene.ordersNodeName)?.children.forEach { node in
             if let orderNode = node as? OrderNode {
                 let order = orderNode.order
-                let progress = (currentTime - order.startTime) / (order.endTime - order.startTime)
+                let progress = ((gameManager?.timeElapsed ?? order.startTime) - order.startTime) / (order.endTime - order.startTime)
                 orderNode.updateProgressBar(progress: min(max(1 - progress, 0.0), 1.0))
             }
-        })
+        }
     }
     
     override func mouseDown(with event: NSEvent) {
         super.mouseDown(with: event)
-        if let orderNode = nodes(at: event.location(in: self)).first(where: { $0 is OrderNode }) as? OrderNode {
-            gameManager?.selectOrder(orderNode.order)
+        let touchedNodes = nodes(at: event.location(in: self))
+        
+        if let menu = gameMenu {
+            if touchedNodes.first(where: { menu.processClick(on: $0) }) != nil {
+                return
+            }
+        }
+        
+        if gameManager?.isPaused == true {
+        } else {
+            if touchedNodes.contains(where: { $0.name == OverlayScene.pauseNodeName }) {
+                gameMenu = Menu(levels: gameManager?.levels ?? [], gameManager: gameManager, type: .paused)
+                gameMenu!.show(in: self)
+                return
+            }
+            if let orderNode = touchedNodes.first(where: { $0 is OrderNode }) as? OrderNode {
+                gameManager?.selectOrder(orderNode.order)
+            }
         }
     }
 }
@@ -29,7 +48,19 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
     let overlayScene: OverlayScene
     let hudNode = SKNode()
     
+    public var isPaused = false {
+        didSet {
+            _level?.scene.isPaused = isPaused
+            gestureRecognizer?.isEnabled = !isPaused
+        }
+    }
+    
     private var _level: Level?
+    public var currentLevel: Level? {
+        return _level
+    }
+    
+    public var levels = [Level]()
     
     private var currentOrderIndex = 0
     private var orderQueue = [Order]()
@@ -50,56 +81,133 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
     private let selectOrderPromptNode: SKShapeNode
     private var cupNodeToSubmit: CupNode?
     
+    private let trashAlertNode: SKShapeNode
+    private var trashCountdown: TimeInterval?
+    
+    private let moneyMeter: Meter
+    private let reputationMeter: Meter
+    private let timerMeter: Meter
+    
+    private let pauseNode = SKSpriteNode(imageNamed: "Pause.png")
+    
+    private var gestureRecognizer: NSGestureRecognizer?
+    
+    public var money = 0 {
+        didSet {
+            moneyMeter.updateValue(Double(money), duration: 0.3)
+            if let level = _level {
+                if level.timeLimit == nil {
+                    if money >= level.targetMoney {
+                        overlayScene.gameMenu = Menu(levels: levels, gameManager: self, type: money >= level.targetMoney ? .success : .failure)
+                        overlayScene.gameMenu!.show(in: overlayScene)
+                    }
+                }
+            }
+        }
+    }
+    public var reputation = 3.0 {
+        didSet {
+            reputationMeter.updateValue(reputation, duration: 0.3)
+        }
+    }
+    internal var timeElapsed: TimeInterval = 0 {
+        didSet {
+            if let limit = _level?.timeLimit {
+                timerMeter.updateValue(max(limit - timeElapsed, 0))
+            }
+        }
+    }
+    
+    private func calculateOrderPrice(for order: Order) -> Int {
+        let base = Double(order.liquids.count) * 1.5 + Double(order.bubbles.count) * 0.5
+        let multiplier = (reputation - 1) / 2
+        return Int(round(base * multiplier))
+    }
+    
     public func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
         let delta = time - (lastFrame ?? time)
         
-        renderer.scene?.rootNode.enumerateChildNodes { node, _ in
-            if let dispenser = node as? LiquidDispenserNode {
-                dispenser.runHitTest(in: renderer.scene!.physicsWorld, liquidToAdd: Double(delta * 0.25))
-            }
-        }
-        
-        renderer.scene?.rootNode.enumerateChildNodes { node, _ in
-            if let cupNode = node as? CupNode {
-                cupNode.update()
-            }
-        }
-        
-        if let level = _level {
-            if orderQueue.count < orderLimit {
-                if Double.random(in: 0.0...(7.0 / level.orderFrequency)) < delta {
-                    currentOrderIndex += 1
-                    addOrder(Order(index: currentOrderIndex, randomWithPossibleLiquids: Set(level.liquids), maxLiquids: level.maxLiquidsPerOrder, needsShake: level.needsShake, bubbles: Set(level.bubbles), maxBubbles: level.maxBubblesPerOrder, timeLimit: level.orderTimeRange, startTime: time, price: 1, reputation: 1))
+        if !isPaused {
+            timeElapsed += delta
+
+            renderer.scene?.rootNode.enumerateChildNodes { node, _ in
+                if let dispenser = node as? LiquidDispenserNode {
+                    dispenser.runHitTest(in: renderer.scene!.physicsWorld, liquidToAdd: Double(delta * 0.4))
                 }
             }
             
-            level.cupGenerator?.update(physicsWorld: level.scene.physicsWorld)
-            
-            if let cupNode = level.cupSubmitter?.cupOnNode(physicsWorld: level.scene.physicsWorld) {
-                if cupNodeToSubmit == nil {
-                    selectOrderPromptNode.run(SKAction.moveTo(y: 0, duration: 0.3))
+            renderer.scene?.rootNode.enumerateChildNodes { node, _ in
+                if let cupNode = node as? CupNode {
+                    cupNode.update()
                 }
-                cupNodeToSubmit = cupNode
-            } else {
-                if cupNodeToSubmit != nil {
-                    selectOrderPromptNode.run(SKAction.moveTo(y: -selectOrderPromptNode.calculateAccumulatedFrame().height, duration: 0.3))
-                }
-                cupNodeToSubmit = nil
             }
+            
+            if let level = _level {
+                if orderQueue.count < orderLimit {
+                    if Double.random(in: 0.0...(7.0 / level.orderFrequency)) < delta {
+                        currentOrderIndex += 1
+                        let order = Order(index: currentOrderIndex, randomWithPossibleLiquids: Set(level.liquids), maxLiquids: level.maxLiquidsPerOrder, needsShake: level.needsShake, bubbles: Set(level.bubbles), maxBubbles: level.maxBubblesPerOrder, timeLimit: level.orderTimeRange, startTime: timeElapsed, price: 0, reputation: 1)
+                        order.price = calculateOrderPrice(for: order)
+                        addOrder(order)
+                    }
+                }
+                
+                level.cupGenerator?.update(physicsWorld: level.scene.physicsWorld)
+                
+                if let cupNode = level.cupSubmitter?.cupOnNode(physicsWorld: level.scene.physicsWorld) {
+                    if cupNodeToSubmit == nil {
+                        selectOrderPromptNode.run(SKAction.moveTo(y: 0, duration: 0.3))
+                    }
+                    cupNodeToSubmit = cupNode
+                } else {
+                    if cupNodeToSubmit != nil {
+                        selectOrderPromptNode.run(SKAction.moveTo(y: -selectOrderPromptNode.calculateAccumulatedFrame().height, duration: 0.3))
+                    }
+                    cupNodeToSubmit = nil
+                }
+                
+                if let cupNode = level.cupTrash?.cupOnNode(physicsWorld: level.scene.physicsWorld) {
+                    if trashCountdown == nil {
+                        trashAlertNode.run(SKAction.fadeIn(withDuration: 0.4))
+                        trashCountdown = 3
+                    }
+                    trashCountdown! -= delta
+                    (trashAlertNode.childNode(withName: "countdown") as? SKLabelNode)?.text = String(max(Int(ceil(trashCountdown!)), 0))
+                    let projected = sceneView.projectPoint(level.cupTrash!.node.position)
+                    trashAlertNode.position = CGPoint(x: projected.x, y: projected.y)
+                    
+                    if trashCountdown! <= 0 {
+                        cupNode.removeFromParentNode()
+                    }
+                } else {
+                    if trashCountdown != nil {
+                        trashAlertNode.run(SKAction.fadeOut(withDuration: 0.4))
+                    }
+                    trashCountdown = nil
+                }
+                
+                if let limit = level.timeLimit {
+                    if timeElapsed > limit {
+                        overlayScene.gameMenu = Menu(levels: levels, gameManager: self, type: money >= level.targetMoney ? .success : .failure)
+                        overlayScene.gameMenu!.show(in: overlayScene)
+                    }
+                }
+            }
+            
+            orderQueue.removeAll(where: { order in
+                if timeElapsed > order.endTime {
+                    orderOverdue(order)
+                    return true
+                }
+                
+                return false
+            })
         }
-        
-        orderQueue.removeAll(where: { order in
-            if time > order.endTime {
-                orderOverdue(order)
-                return true
-            }
-            
-            return false
-        })
         
         lastFrame = time
     }
     
+    private let orderContainer = SKNode()
     private var orderNodes = [OrderNode]()
     
     private func calculateOrderNodeX(index: Int) -> CGFloat {
@@ -110,11 +218,10 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
         orderQueue.append(order)
         
         let node = OrderNode(order: order)
-        node.name = OverlayScene.orderNodeName
         node.position = CGPoint(x: overlayScene.size.width, y: 16)
         node.run(SKAction.moveTo(x: calculateOrderNodeX(index: orderNodes.count), duration: 0.3))
         orderNodes.append(node)
-        hudNode.addChild(node)
+        orderContainer.addChild(node)
     }
     
     private func updateOrderNodePositions() {
@@ -130,6 +237,8 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
             node.run(SKAction.sequence([SKAction.fadeOut(withDuration: 1.0), SKAction.removeFromParent()]))
             updateOrderNodePositions()
         }
+        
+        reputation = max(1, reputation - 0.5 * (_level?.reputationLossMultiplier ?? 1))
     }
     
     private func orderFailed(_ order: Order, reason: Order.CheckResult) {
@@ -139,6 +248,24 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
             node.run(SKAction.sequence([SKAction.fadeOut(withDuration: 1.0), SKAction.removeFromParent()]))
             updateOrderNodePositions()
         }
+        
+        let reputationToLose: Double
+        switch reason {
+        case .needsShake:
+            reputationToLose = 0.3
+        case .excessiveShake:
+            reputationToLose = 0.1
+        case .notFull:
+            reputationToLose = 0.4
+        case .wrongLiquids(_, _):
+            reputationToLose = 0.6
+        case .wrongBubbles(_, _):
+            reputationToLose = 0.5
+        default:
+            reputationToLose = 0.2
+        }
+        reputation = max(1, reputation - reputationToLose * (_level?.reputationLossMultiplier ?? 1))
+        money += order.price
     }
     
     private func orderFulfilled(_ order: Order) {
@@ -148,6 +275,9 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
             node.run(SKAction.sequence([SKAction.fadeOut(withDuration: 1.0), SKAction.removeFromParent()]))
             updateOrderNodePositions()
         }
+        
+        reputation = min(5, reputation + (_level?.reputationPerCorrectOrder ?? 0))
+        money += order.price
     }
     
     internal func selectOrder(_ order: Order) {
@@ -266,6 +396,18 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
         sceneView = view
         overlayScene = OverlayScene(size: view.frame.size)
         selectOrderPromptNode = SKShapeNode(rect: CGRect(x: 0, y: 0, width: sceneView.bounds.width, height: 200))
+        trashAlertNode = SKShapeNode(rect: CGRect(x: -40, y: -54, width: 80, height: 60), cornerRadius: 8)
+        
+        let reputationFormatter = NumberFormatter()
+        reputationFormatter.minimumFractionDigits = 1
+        reputationFormatter.maximumFractionDigits = 1
+        reputationFormatter.roundingMode = .halfUp
+        reputationFormatter.roundingIncrement = 0.1
+        reputationMeter = Meter(size: CGSize(width: 192, height: 33), value: reputation, min: 1, max: 5, accentColor: NSColor(red: 0.76, green: 0.55, blue: 0.05, alpha: 1), image: NSImage(named: "Star.png")!, formatter: reputationFormatter)
+        
+        moneyMeter = Meter(size: CGSize(width: 192, height: 33), value: Double(money), min: 0, max: 1, accentColor: NSColor(red: 0, green: 0.6, blue: 0.1, alpha: 1), image: NSImage(named: "Money.png")!, showMaxAsText: true)
+        
+        timerMeter = Meter(size: CGSize(width: 192, height: 33), value: 0, min: 0, max: 1, accentColor: NSColor(red: 0.05, green: 0.35, blue: 0.9, alpha: 1), image: NSImage(named: "Timer.png")!)
         
         super.init()
         
@@ -276,8 +418,8 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
         
         overlayScene.gameManager = self
         
-        let panGestureRecognizer = NSPanGestureRecognizer(target: self, action: #selector(GameManager.pan(sender:)))
-        sceneView.addGestureRecognizer(panGestureRecognizer)
+        gestureRecognizer = NSPanGestureRecognizer(target: self, action: #selector(GameManager.pan(sender:)))
+        sceneView.addGestureRecognizer(gestureRecognizer!)
         
         hudNode.alpha = 0
         hudNode.name = "hud"
@@ -297,6 +439,45 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
         selectOrderPromptNode.addChild(promptLabelNode)
         
         hudNode.addChild(selectOrderPromptNode)
+        
+        orderContainer.name = OverlayScene.ordersNodeName
+        hudNode.addChild(orderContainer)
+        
+        trashAlertNode.fillColor = .black
+        trashAlertNode.strokeColor = .clear
+        trashAlertNode.alpha = 0
+        
+        let trashAlertTitle = SKLabelNode(text: "TRASH")
+        trashAlertTitle.fontSize = 13
+        trashAlertTitle.fontName = NSFont.systemFont(ofSize: trashAlertTitle.fontSize, weight: .bold).fontName
+        trashAlertTitle.position = CGPoint(x: 0, y: -2)
+        trashAlertTitle.horizontalAlignmentMode = .center
+        trashAlertTitle.verticalAlignmentMode = .top
+        trashAlertNode.addChild(trashAlertTitle)
+        
+        let trashAlertCountdown = SKLabelNode(text: "?")
+        trashAlertCountdown.fontSize = 36
+        trashAlertCountdown.fontName = NSFont.systemFont(ofSize: trashAlertTitle.fontSize, weight: .medium).fontName
+        trashAlertCountdown.position = CGPoint(x: 0, y: -48)
+        trashAlertCountdown.horizontalAlignmentMode = .center
+        trashAlertCountdown.verticalAlignmentMode = .bottom
+        trashAlertCountdown.name = "countdown"
+        trashAlertNode.addChild(trashAlertCountdown)
+        
+        hudNode.addChild(trashAlertNode)
+        
+        moneyMeter.node.position = CGPoint(x: 16, y: 431)
+        reputationMeter.node.position = CGPoint(x: 224, y: 431)
+        timerMeter.node.position = CGPoint(x: 432, y: 431)
+        
+        hudNode.addChild(moneyMeter.node)
+        hudNode.addChild(reputationMeter.node)
+        hudNode.addChild(timerMeter.node)
+        
+        pauseNode.name = OverlayScene.pauseNodeName
+        pauseNode.scale(to: CGSize(width: 24, height: 24))
+        pauseNode.position = CGPoint(x: 612, y: 28)
+        hudNode.addChild(pauseNode)
     }
     
     public func reset() {
@@ -306,6 +487,15 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
         lastFrame = nil
         
         hudNode.alpha = 0
+        
+        var toRemove = [SCNNode]()
+        _level?.scene.rootNode.enumerateChildNodes({ node, _ in
+            if node is CupNode {
+                toRemove.append(node)
+            }
+        })
+        
+        toRemove.forEach { $0.removeFromParentNode() }
         
         sceneView.scene = nil
         _level = nil
@@ -317,6 +507,14 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
         
         cupNodeToSubmit = nil
         selectOrderPromptNode.position.y = -selectOrderPromptNode.calculateAccumulatedFrame().height
+        
+        money = 0
+        reputation = 3.0
+        timeElapsed = 0
+        
+        timerMeter.node.isHidden = true
+        
+        isPaused = false
     }
     
     public func loadLevel(_ level: Level) {
@@ -344,5 +542,19 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
         }
         
         hudNode.run(SKAction.sequence([SKAction.wait(forDuration: 3), SKAction.fadeIn(withDuration: 1.0)]))
+        moneyMeter.maxValue = Double(level.targetMoney)
+        moneyMeter.updateValue(Double(money))
+        
+        timeElapsed = 0
+        
+        if let limit = level.timeLimit {
+            timerMeter.node.isHidden = false
+            timerMeter.updateValue(limit - timeElapsed)
+            timerMeter.maxValue = limit
+        } else {
+            timerMeter.node.isHidden = true
+        }
+        
+        isPaused = false
     }
 }
