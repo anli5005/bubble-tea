@@ -62,7 +62,7 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
     
     public var levels = [Level]()
     
-    private var currentOrderIndex = 0
+    private var currentOrderIndex = 1
     private var orderQueue = [Order]()
     public var currentOrders: [Order] {
         return orderQueue
@@ -91,6 +91,8 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
     private let pauseNode = SKSpriteNode(imageNamed: "Pause.png")
     
     private var gestureRecognizer: NSGestureRecognizer?
+    
+    private static let tutorialWelcome = "Welcome! To get started, grab a cup."
     
     public var money = 0 {
         didSet {
@@ -144,11 +146,10 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
             
             if let level = _level {
                 if orderQueue.count < orderLimit {
-                    if Double.random(in: 0.0...(7.0 / level.orderFrequency)) < delta {
-                        currentOrderIndex += 1
-                        let order = Order(index: currentOrderIndex, randomWithPossibleLiquids: Set(level.liquids), maxLiquids: level.maxLiquidsPerOrder, needsShake: level.needsShake, bubbles: Set(level.bubbles), maxBubbles: level.maxBubblesPerOrder, timeLimit: level.orderTimeRange, startTime: timeElapsed, price: 0, reputation: 1)
+                    if let order = level.generateOrder(timeSinceLastCall: delta, timeElapsed: timeElapsed, index: currentOrderIndex) {
                         order.price = calculateOrderPrice(for: order)
                         addOrder(order)
+                        currentOrderIndex += 1
                     }
                 }
                 
@@ -253,8 +254,10 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
         switch reason {
         case .needsShake:
             reputationToLose = 0.3
+            money += order.price
         case .excessiveShake:
             reputationToLose = 0.1
+            money += order.price
         case .notFull:
             reputationToLose = 0.4
         case .wrongLiquids(_, _):
@@ -265,7 +268,6 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
             reputationToLose = 0.2
         }
         reputation = max(1, reputation - reputationToLose * (_level?.reputationLossMultiplier ?? 1))
-        money += order.price
     }
     
     private func orderFulfilled(_ order: Order) {
@@ -500,7 +502,7 @@ public class GameManager: NSObject, SCNSceneRendererDelegate {
         sceneView.scene = nil
         _level = nil
         
-        currentOrderIndex = 0
+        currentOrderIndex = 1
         orderQueue = [Order]()
         orderNodes.forEach { $0.removeFromParent() }
         orderNodes = [OrderNode]()

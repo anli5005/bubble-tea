@@ -91,7 +91,7 @@ class OrderNode: SKShapeNode {
     
     // I don't use instances of NSCoder in this playground, and so I've simply added a stub initializer to satisfy the init(coder:) requirement. However, if I were to continue development on this project, I would look into making each of my nodes encodable and decodable with an NSCoder.
     public required init?(coder aDecoder: NSCoder) {
-        order = Order(liquids: [], needsShake: false, bubbles: [], startTime: 0, endTime: 0, price: 0, reputation: 0)
+        order = Order(liquids: [], needsShake: false, bubbles: [], startTime: 0, endTime: 0, price: 0)
         backgroundNode = SKShapeNode()
         super.init(coder: aDecoder)
     }

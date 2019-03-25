@@ -67,4 +67,12 @@ public class Level {
         cupTrash!.node.position = position + SCNVector3(0, 0.01, 0)
         scene.rootNode.addChildNode(cupTrash!.node)
     }
+    
+    public func generateOrder(timeSinceLastCall: TimeInterval, timeElapsed: TimeInterval, index: Int) -> Order? {
+        if Double.random(in: 0.0...(7.0 / orderFrequency)) < timeSinceLastCall {
+            return Order(index: index, randomWithPossibleLiquids: Set(liquids), maxLiquids: maxLiquidsPerOrder, needsShake: needsShake, bubbles: Set(bubbles), maxBubbles: maxBubblesPerOrder, timeLimit: orderTimeRange, startTime: timeElapsed, price: 0)
+        } else {
+            return nil
+        }
+    }
 }

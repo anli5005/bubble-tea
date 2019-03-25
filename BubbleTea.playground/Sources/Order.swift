@@ -8,9 +8,8 @@ public class Order {
     public let startTime: TimeInterval
     public let endTime: TimeInterval
     public var price: Int
-    public let reputation: Double
     
-    public init(index: Int? = nil, liquids: [LiquidType], needsShake: Bool, bubbles: [BubbleType], startTime: TimeInterval, endTime: TimeInterval, price: Int, reputation: Double) {
+    public init(index: Int? = nil, liquids: [LiquidType], needsShake: Bool, bubbles: [BubbleType], startTime: TimeInterval, endTime: TimeInterval, price: Int) {
         self.index = index
         self.liquids = liquids
         self.needsShake = needsShake
@@ -18,10 +17,9 @@ public class Order {
         self.startTime = startTime
         self.endTime = endTime
         self.price = price
-        self.reputation = reputation
     }
     
-    public convenience init(index: Int? = nil, randomWithPossibleLiquids liquids: Set<LiquidType>, maxLiquids: Int, needsShake: Set<Bool>, bubbles: Set<BubbleType>, maxBubbles: Int, timeLimit: ClosedRange<TimeInterval>, startTime: TimeInterval, price: Int, reputation: Double) {
+    public convenience init(index: Int? = nil, randomWithPossibleLiquids liquids: Set<LiquidType>, maxLiquids: Int, needsShake: Set<Bool>, bubbles: Set<BubbleType>, maxBubbles: Int, timeLimit: ClosedRange<TimeInterval>, startTime: TimeInterval, price: Int) {
         var liquidTypes = [LiquidType]()
         var possibleLiquids = liquids
         let numLiquids = Int.random(in: 1...min(maxLiquids, liquids.count))
@@ -40,7 +38,7 @@ public class Order {
             possibleBubbles.remove(bubbleType)
         }
         
-        self.init(index: index, liquids: liquidTypes, needsShake: needsShake.randomElement() ?? false, bubbles: bubbleTypes, startTime: startTime, endTime: startTime + Double.random(in: timeLimit), price: price, reputation: reputation)
+        self.init(index: index, liquids: liquidTypes, needsShake: needsShake.randomElement() ?? false, bubbles: bubbleTypes, startTime: startTime, endTime: startTime + Double.random(in: timeLimit), price: price)
     }
     
     public enum CheckResult {
